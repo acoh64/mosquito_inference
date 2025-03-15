@@ -4,7 +4,7 @@ const FRAME_INTERVAL = 1000 / FPS;
 const TIME_STEP = 0.02; // Data is filtered to include only time points divisible by 0.02
 const DISTRIBUTION_UPDATE_INTERVAL = 0.1; // Update distribution every 0.1 seconds
 const DISTRIBUTION_SAMPLE_INTERVAL = 0.05; // Sample positions every 0.05 seconds
-const TRAIL_LENGTH = 10; // Number of previous positions to show in trail
+const TRAIL_LENGTH = 0; // Number of previous positions to show in trail
 const MAX_SPEED_COLOR = 1.5; // Maximum speed for color scaling
 
 // Canvas setup
@@ -44,14 +44,13 @@ async function init() {
         const parsedData = parseCSV(csvText);
         
         // Filter data to include only time points divisible by 0.02
-        mosquitoData = parsedData.filter(row => {
-            // Check if time is divisible by 0.02 (accounting for floating point precision)
-            return Math.abs(row.time / 0.02 - Math.round(row.time / 0.02)) < 0.0001;
-        });
-        
+        mosquitoData = parsedData;
+        console.log(mosquitoData);
+
         // Extract unique time points
         timePoints = [...new Set(mosquitoData.map(row => row.time))].sort((a, b) => a - b);
-        
+        // console.log(timePoints);
+
         // Start the animation loop
         requestAnimationFrame(animate);
         
@@ -110,15 +109,13 @@ function animate(timestamp) {
 function updateSimulation() {
     const currentTime = timePoints[currentTimeIndex];
     
-    // Clear the canvas
-    simulationCtx.clearRect(0, 0, simulationCanvas.width, simulationCanvas.height);
-    
-    // Draw coordinate system
-    drawCoordinateSystem(simulationCtx, simulationCanvas.width, simulationCanvas.height);
+    // Clear only the dynamic elements, not the entire canvas
+    clearCanvasPreservingBackground(simulationCtx, simulationCanvas.width, simulationCanvas.height);
     
     // Get mosquitoes at the current time
     const currentMosquitoes = mosquitoData.filter(row => row.time === currentTime);
     
+    console.log(currentMosquitoes);
     // Draw each mosquito and its trail
     currentMosquitoes.forEach(mosquito => {
         drawMosquitoWithTrail(mosquito);
@@ -133,42 +130,24 @@ function updateSimulation() {
     currentTimeIndex = (currentTimeIndex + 1) % timePoints.length;
 }
 
-// Draw coordinate system
-function drawCoordinateSystem(ctx, width, height) {
-    const centerX = width / 2;
-    const centerY = height / 2;
+// Clear canvas while preserving the background
+function clearCanvasPreservingBackground(ctx, width, height) {
+    // Save the current transformation matrix
+    ctx.save();
     
-    ctx.strokeStyle = '#ddd';
-    ctx.lineWidth = 1;
+    // Use the identity matrix while clearing the canvas
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, width, height);
     
-    // Draw grid lines
-    ctx.beginPath();
-    for (let x = 0; x <= width; x += 50) {
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-    }
-    for (let y = 0; y <= height; y += 50) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-    }
-    ctx.stroke();
-    
-    // Draw axes
-    ctx.strokeStyle = '#999';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, centerY);
-    ctx.lineTo(width, centerY);
-    ctx.moveTo(centerX, 0);
-    ctx.lineTo(centerX, height);
-    ctx.stroke();
+    // Restore the transform
+    ctx.restore();
 }
 
 // Draw a mosquito and its trail
 function drawMosquitoWithTrail(mosquito) {
     // Convert data coordinates to canvas coordinates
     const canvasX = mapToCanvas(mosquito.x, -1, 1, 0, simulationCanvas.width);
-    const canvasY = mapToCanvas(mosquito.y, -1, 1, simulationCanvas.height, 0);
+    const canvasY = mapToCanvas(mosquito.y, -1, 1, 0, simulationCanvas.height);
     
     // Draw trail
     const trailData = getTrailData(mosquito);
@@ -205,7 +184,7 @@ function getTrailData(currentMosquito) {
 // Draw the trail behind a mosquito
 function drawTrail(trailData) {
     trailData.forEach((position, index) => {
-        const size = 8 - (index * 0.7); // Decreasing size
+        const size = 4 - (index * 0.6); // Decreasing size
         if (size <= 0) return;
         
         const canvasX = mapToCanvas(position.x, -1, 1, 0, simulationCanvas.width);
@@ -227,10 +206,10 @@ function drawMosquito(x, y, vx, vy) {
     
     simulationCtx.save();
     simulationCtx.translate(x, y);
-    
+
     // Rotate to align with velocity vector
-    simulationCtx.rotate(Math.atan2(vy, vx) + Math.PI/2);
-    
+    simulationCtx.rotate(Math.atan2(vy, vx) + 0.5 * Math.PI);
+
     // Draw the mosquito image
     simulationCtx.drawImage(
         mosquitoImage, 
@@ -245,11 +224,8 @@ function drawMosquito(x, y, vx, vy) {
 
 // Update the distribution visualization
 function updateDistribution(currentTime) {
-    // Clear the canvas
-    distributionCtx.clearRect(0, 0, distributionCanvas.width, distributionCanvas.height);
-    
-    // Draw coordinate system
-    drawCoordinateSystem(distributionCtx, distributionCanvas.width, distributionCanvas.height);
+    // Clear the canvas while preserving background
+    clearCanvasPreservingBackground(distributionCtx, distributionCanvas.width, distributionCanvas.height);
     
     // Find all positions within the sampling interval
     const sampleTimes = timePoints.filter(time => 
@@ -312,4 +288,4 @@ mosquitoImage.onload = init;
 // Initialize if the image is already cached
 if (mosquitoImage.complete) {
     init();
-} 
+}
